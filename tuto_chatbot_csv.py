@@ -7,18 +7,25 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai import ChatOpenAI
 
-# Ensure the user provides an API key before proceeding
-user_api_key = st.sidebar.text_input(
-    label="#### my OpenAI API key 👇",
-    placeholder="Paste your OpenAI API key, sk-",
-    type="password")
+# Attempt to get the API key from Streamlit's secrets
+user_api_key = st.secrets.get("openai_api_key", "")
+
+# If the API key is not found in Streamlit's secrets, prompt the user to enter it in the sidebar
+if not user_api_key:
+    user_api_key = st.sidebar.text_input(
+        label="#### Enter your OpenAI API key 👇",
+        placeholder="Paste your OpenAI API key",
+        type="password")
 
 if user_api_key:  # Only proceed if an API key is entered
-    uploaded_file = st.sidebar.file_uploader("upload", type="csv")
+
+    uploaded_file = st.sidebar.file_uploader("Upload CSV", type="csv")
 
     if uploaded_file:  # Process the file only if provided
-        with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+
+        with tempfile.NamedTemporaryFile(delete=False, mode='w+b') as tmp_file:
             tmp_file.write(uploaded_file.getvalue())
+            tmp_file.flush()  # Ensure all data is written to the file
             tmp_file_path = tmp_file.name
 
         # Initialize the CSV loader and load the data
@@ -27,7 +34,7 @@ if user_api_key:  # Only proceed if an API key is entered
 
         # Initialize OpenAIEmbeddings with the provided API key
         embeddings = OpenAIEmbeddings(openai_api_key=user_api_key)
-        
+
         # Create a vector store from the documents
         vectors = FAISS.from_documents(data, embeddings)
 
@@ -42,12 +49,11 @@ if user_api_key:  # Only proceed if an API key is entered
         )
 
         # Define the conversational chat function
-       
         def conversational_chat(query):
-            result = chain.invoke({"question": query, "chat_history": st.session_state['history']})  # Updated method
+            result = chain.invoke({"question": query, "chat_history": st.session_state['history']})
             st.session_state['history'].append((query, result["answer"]))
             return result["answer"]
-        
+
         # Initialize session state if it hasn't been set up already
         if 'history' not in st.session_state:
             st.session_state['history'] = []
@@ -60,26 +66,22 @@ if user_api_key:  # Only proceed if an API key is entered
 
         # Streamlit UI components for the chat history and text input
         response_container = st.container()
-        
+
         with st.container():
             with st.form(key='my_form', clear_on_submit=True):
-                user_input = st.text_input("Query:", placeholder="Talk about your csv data here (:", key='input')
+                user_input = st.text_input("Ask a question about your CSV data:", key='input')
                 submit_button = st.form_submit_button(label='Send')
 
-            # If the user sends a message, process it and update the conversation history
             if submit_button and user_input:
                 output = conversational_chat(user_input)
                 st.session_state['past'].append(user_input)
                 st.session_state['generated'].append(output)
 
         # Display chat messages using the Streamlit Chat component
-        if st.session_state['generated']:
-            with response_container:
-                for i in range(len(st.session_state['generated'])):
-                    message(st.session_state["past"][i], is_user=True, key=str(i) + '_user', avatar_style="big-smile")
-                    message(st.session_state["generated"][i], key=str(i), avatar_style="thumbs")
-else:  # Prompt the user to enter the API key
-    st.sidebar.error("Please enter your OpenAI API key.")
+        with response_container:
+            for i in range(len(st.session_state['generated'])):
+                message(st.session_state["past"][i], is_user=True, key=str(i) + '_user')
+                message(st.session_state["generated"][i], key=str(i))
 
-# Instruct the user to run the script with Streamlit if not already running
-# (e.g., 'streamlit run your_script.py')
+else:
+    st.sidebar.error("Please enter your OpenAI API key.")
