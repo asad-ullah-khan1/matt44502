@@ -9,7 +9,7 @@ from langchain_openai import ChatOpenAI
 
 # Ensure the user provides an API key before proceeding
 user_api_key = st.sidebar.text_input(
-    label="#### Your OpenAI API key 👇",
+    label="#### my OpenAI API key 👇",
     placeholder="Paste your OpenAI API key, sk-",
     type="password")
 
